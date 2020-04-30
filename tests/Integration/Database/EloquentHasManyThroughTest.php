@@ -84,6 +84,26 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertEquals(['id' => 2, 'laravel_through_key' => 1], $teamMates[0]->getAttributes());
     }
 
+    public function testWithoutGlobalScopesColumns()
+    {
+        $user = User::create(['name' => Str::random()]);
+        $team = Team::create(['owner_id' => $user->id]);
+
+        User::create(['name' => Str::random(), 'team_id' => $team->id]);
+
+        $teamMates = $user->teamMatesWithoutGlobalScope;
+
+        $result = UserWithGlobalScope::withoutGlobalScopes()
+            ->where('team_id', $team->id)->get()
+            ->tap(function ($users) {
+                $users->map(function ($user) {
+                    $user->laravel_through_key = 1;
+                });
+            });
+
+        $this->assertEquals($teamMates->toArray(), $result->toArray());
+    }
+
     public function testHasSelf()
     {
         $user = User::create(['name' => Str::random()]);
@@ -145,6 +165,11 @@ class User extends Model
     public function teamMatesWithGlobalScope()
     {
         return $this->hasManyThrough(UserWithGlobalScope::class, Team::class, 'owner_id', 'team_id');
+    }
+
+    public function teamMatesWithoutGlobalScope()
+    {
+        return $this->teamMatesWithGlobalScope()->withoutGlobalScopes();
     }
 }
 
