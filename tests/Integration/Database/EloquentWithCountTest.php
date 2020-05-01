@@ -12,6 +12,25 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentWithCountTest extends DatabaseTestCase
 {
+    protected function getEnvironmentSetUp($app)
+    {
+        $app['config']->set('app.debug', 'true');
+
+        $app['config']->set('database.default', 'conn1');
+
+        $app['config']->set('database.connections.conn1', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+
+        $app['config']->set('database.connections.conn2', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -34,6 +53,11 @@ class EloquentWithCountTest extends DatabaseTestCase
             $table->increments('id');
             $table->integer('one_id');
         });
+
+        Schema::connection('conn2')->create('five', function (Blueprint $table) {
+            $table->increments('id');
+            $table->integer('one_id');
+        });
     }
 
     public function testItBasic()
@@ -51,6 +75,16 @@ class EloquentWithCountTest extends DatabaseTestCase
         $this->assertEquals([
             ['id' => 1, 'twos_count' => 1],
         ], $results->get()->toArray());
+    }
+
+    public function testCrossConnection()
+    {
+        $one  = Model1::create();
+        $five = $one->fives()->Create();
+
+        $this->assertEquals([
+            ['id' => 1, 'fives_count' => 1],
+        ], Model1::withCount('fives')->get()->toArray());
     }
 
     public function testGlobalScopes()
@@ -80,6 +114,11 @@ class Model1 extends Model
     public function fours()
     {
         return $this->hasMany(Model4::class, 'one_id');
+    }
+
+    public function fives()
+    {
+        return $this->hasMany(Model5::class, 'one_id');
     }
 
     public function allFours()
@@ -131,4 +170,12 @@ class Model4 extends Model
             $builder->where('id', '>', 1);
         });
     }
+}
+
+class Model5 extends Model
+{
+    public $table = 'five';
+    public $timestamps = false;
+    protected $guarded = ['id'];
+    protected $connection = 'conn2';
 }
